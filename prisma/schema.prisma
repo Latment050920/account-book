@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum RecordType {
+  income
+  expense
+}
+
+model Category {
+  id           Int           @id @default(autoincrement())
+  name         String
+  type         RecordType
+  icon         String?
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+
+  @@unique([name, type], name: "name_type")
+}
+
+model Transaction {
+  id         Int        @id @default(autoincrement())
+  type       RecordType
+  amount     Int
+  categoryId Int
+  note       String?
+  happenedAt DateTime
+  createdAt  DateTime   @default(now())
+  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([happenedAt])
+  @@index([categoryId])
+}
+
+model Budget {
+  id          Int      @id @default(autoincrement())
+  month       String
+  totalBudget Int
+  createdAt   DateTime @default(now())
+
+  @@unique([month])
+}
