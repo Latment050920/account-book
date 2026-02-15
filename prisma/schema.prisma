@@ -24,24 +24,24 @@ model Category {
 }
 
 model Transaction {
-  id         Int        @id @default(autoincrement())
-  type       RecordType
-  amount     Int
-  categoryId Int
-  note       String?
-  happenedAt DateTime
-  createdAt  DateTime   @default(now())
-  category   Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  id          Int        @id @default(autoincrement())
+  type        RecordType
+  amountCents Int
+  categoryId  Int
+  note        String?
+  happenedAt  DateTime
+  createdAt   DateTime   @default(now())
+  category    Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
   @@index([happenedAt])
   @@index([categoryId])
 }
 
 model Budget {
-  id          Int      @id @default(autoincrement())
-  month       String
-  totalBudget Int
-  createdAt   DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  month            String
+  totalBudgetCents Int
+  createdAt        DateTime @default(now())
 
   @@unique([month])
 }

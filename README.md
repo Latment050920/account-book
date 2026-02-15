@@ -1,9 +1,10 @@
-# Account Book（Phase 1 + Phase 2）
+# Account Book（Phase 1 + 2 + 3）
 
-个人生活记账可视化 Web App。当前已完成：
+个人生活记账可视化 Web App。
 
-- Phase 1：Next.js + TypeScript + Tailwind 基础骨架与三页面
-- Phase 2：Prisma + SQLite 开发数据库 + 初始分类 seed
+- Phase 1：Next.js + TypeScript + Tailwind 基础骨架
+- Phase 2：Prisma + SQLite + 分类 Seed
+- Phase 3：API（categories / transactions / stats / budget）
 
 ## 技术栈
 
@@ -11,89 +12,169 @@
 - TypeScript
 - Tailwind CSS
 - Prisma
-- SQLite（开发环境）
+- SQLite（dev）
 - pnpm
 
 ## 环境准备
 
-在项目根目录创建 `.env`（仓库已提供示例）：
+创建 `.env`（可复制 `.env.example`）：
 
 ```env
 DATABASE_URL="file:./dev.db"
 ```
 
-## 本地运行（页面）
+## 安装与启动
 
 ```bash
 pnpm install
+pnpm prisma migrate dev --name init
+pnpm prisma db seed
 pnpm dev
 ```
 
-访问地址：
+页面访问：
 
 - `http://localhost:3000/`
 - `http://localhost:3000/transactions`
 - `http://localhost:3000/settings`
 
-## Phase 2：Prisma 数据库初始化与种子数据
+---
 
-### 1) 生成迁移并创建数据库
+## Phase 3 API 说明
+
+统一说明：
+
+- 金额字段统一“整数分”：`amountCents`、`totalBudgetCents`
+- 输入校验失败返回 `400` + `{ "error": "..." }`
+- 返回 JSON
+
+### 1) Categories
+
+#### GET `/api/categories`
+
+返回全部分类列表（固定按 type/name 排序）。
 
 ```bash
+curl "http://localhost:3000/api/categories"
+```
+
+#### POST `/api/categories`
+
+请求体：
+
+```json
+{
+  "name": "咖啡",
+  "type": "expense",
+  "icon": "☕"
+}
+```
+
+```bash
+curl -X POST "http://localhost:3000/api/categories" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"咖啡","type":"expense","icon":"☕"}'
+```
+
+### 2) Transactions
+
+#### POST `/api/transactions`
+
+请求体：
+
+```json
+{
+  "type": "expense",
+  "amountCents": 3200,
+  "categoryId": "1",
+  "note": "午餐",
+  "happenedAt": "2026-02-15T12:30:00.000Z"
+}
+```
+
+```bash
+curl -X POST "http://localhost:3000/api/transactions" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"expense","amountCents":3200,"categoryId":"1","note":"午餐","happenedAt":"2026-02-15T12:30:00.000Z"}'
+```
+
+> 会校验：`categoryId` 存在，且分类 `type` 必须与流水 `type` 一致。
+
+#### GET `/api/transactions?month=YYYY-MM`
+
+返回当月流水（`happenedAt` 倒序），并包含 `categoryName/categoryType/categoryIcon`。
+
+```bash
+curl "http://localhost:3000/api/transactions?month=2026-02"
+```
+
+### 3) Stats
+
+#### GET `/api/stats?month=YYYY-MM`
+
+返回：
+
+- `totalExpenseCents`
+- `totalIncomeCents`
+- `netCents`
+- `byCategory`（按分类汇总并按 `totalCents desc`）
+- `byDay`（按天汇总）
+
+```bash
+curl "http://localhost:3000/api/stats?month=2026-02"
+```
+
+### 4) Budget
+
+#### GET `/api/budget?month=YYYY-MM`
+
+返回当月预算；若不存在，返回 `data: null`。
+
+```bash
+curl "http://localhost:3000/api/budget?month=2026-02"
+```
+
+#### POST `/api/budget?month=YYYY-MM`
+
+请求体：
+
+```json
+{ "totalBudgetCents": 500000 }
+```
+
+```bash
+curl -X POST "http://localhost:3000/api/budget?month=2026-02" \
+  -H "Content-Type: application/json" \
+  -d '{"totalBudgetCents":500000}'
+```
+
+> 行为：按 `month` upsert（有则更新，无则创建）。
+
+---
+
+## 本地验收（Phase 3）
+
+1. 启动项目：
+
+```bash
+pnpm install
 pnpm prisma migrate dev --name init
-```
-
-### 2) 执行 seed（写入分类）
-
-```bash
 pnpm prisma db seed
+pnpm dev
 ```
 
-### 3) 可选：打开 Prisma Studio 验证
+2. 用上面 curl 示例逐个调用接口，验证：
 
-```bash
-pnpm prisma studio
-```
-
-## 数据模型（Phase 2）
-
-- `Category`: `id`, `name`, `type(income|expense)`, `icon?`, `createdAt`
-- `Transaction`: `id`, `type`, `amount`（整数分）, `categoryId`, `note?`, `happenedAt`, `createdAt`
-- `Budget`: `id`, `month(YYYY-MM)`, `totalBudget`（整数分）, `createdAt`
-
-## Seed 说明
-
-- 提供至少 10 个支出分类 + 5 个收入分类
-- 使用 `upsert`，重复执行不会产生重复分类（按 `name + type` 唯一）
-
-## 验收步骤（Phase 2）
-
-1. 执行：
-
-   ```bash
-   pnpm install
-   pnpm prisma migrate dev --name init
-   pnpm prisma db seed
-   ```
-
-2. 打开 studio：
-
-   ```bash
-   pnpm prisma studio
-   ```
-
-3. 在 `Category` 表中确认：
-
-- 有支出分类 ≥ 10
-- 有收入分类 ≥ 5
+- 非法输入（缺字段、类型错误、金额 <= 0、非法 month/日期、分类不匹配）返回 `400`
+- 预算接口可正常 upsert
+- 统计接口能返回总额、分类汇总、按天汇总
 
 ## 注意事项
 
-- 金额统一使用“整数分”存储（`Transaction.amount`, `Budget.totalBudget`）。
-- `Budget.month` 使用 `YYYY-MM` 字符串，且唯一。
-- 若你本地 registry 被改动导致安装失败，可切回 npm 官方源：
+- 金额统一存储“分”（Int）。
+- `Budget.month` 使用 `YYYY-MM` 且唯一。
+- 如安装失败可切回官方源：
 
-  ```bash
-  pnpm config set registry https://registry.npmjs.org
-  ```
-
+```bash
+pnpm config set registry https://registry.npmjs.org
+```
