@@ -178,3 +178,34 @@ pnpm dev
 ```bash
 pnpm config set registry https://registry.npmjs.org
 ```
+
+
+---
+
+## Phase 4：`/transactions` 页面
+
+已实现：
+
+- 月份选择（默认当前月）
+- 列表展示：`date/type/category/amount/note`
+- 筛选：`type(all/income/expense)`、`category`、关键词（note）
+- “新增”按钮打开 Modal：`type/amount/category/note/happenedAt`
+- `happenedAt` 默认今天，支持“昨天”快捷
+- 提交成功后自动刷新列表并关闭弹窗
+
+### Phase 4 本地验收
+
+```bash
+pnpm dev
+```
+
+打开：`http://localhost:3000/transactions`
+
+建议手工检查：
+
+1. 切换月份后，列表按月更新。
+2. 切换 type/category/关键词，列表过滤正确。
+3. 新增流水时：
+   - 金额 <= 0、缺分类、非法日期会提示错误；
+   - 正常提交后 Modal 关闭，列表立即出现新记录。
+4. 点击“昨天”按钮，日期应变为昨天。
