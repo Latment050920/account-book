@@ -59,6 +59,19 @@ function formatCentsToYuan(cents: number) {
   });
 }
 
+async function parseResponseJson(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return null;
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 export default function TransactionsPage() {
   const [month, setMonth] = useState(getCurrentMonth());
   const [categories, setCategories] = useState<Category[]>([]);
@@ -84,9 +97,9 @@ export default function TransactionsPage() {
 
   async function loadCategories() {
     const res = await fetch("/api/categories", { cache: "no-store" });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "加载分类失败");
-    setCategories(data.data || []);
+    const data = await parseResponseJson(res);
+    if (!res.ok) throw new Error((data && typeof data.error === "string" ? data.error : "加载分类失败"));
+    setCategories((data?.data as Category[] | undefined) || []);
   }
 
   async function loadTransactions(targetMonth: string) {
@@ -94,9 +107,9 @@ export default function TransactionsPage() {
     setError("");
     try {
       const res = await fetch(`/api/transactions?month=${targetMonth}`, { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "加载流水失败");
-      setTransactions(data.data || []);
+      const data = await parseResponseJson(res);
+      if (!res.ok) throw new Error((data && typeof data.error === "string" ? data.error : "加载流水失败"));
+      setTransactions((data?.data as TransactionItem[] | undefined) || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载流水失败");
     } finally {
@@ -202,9 +215,9 @@ export default function TransactionsPage() {
         }),
       });
 
-      const data = await res.json();
+      const data = await parseResponseJson(res);
       if (!res.ok) {
-        setFormError(data.error || "新增失败");
+        setFormError((data && typeof data.error === "string" ? data.error : "新增失败"));
         return;
       }
 

@@ -77,6 +77,19 @@ function getRemainingDaysInMonth(month: string) {
 
 const PIE_COLORS = ["#0f766e", "#0284c7", "#7c3aed", "#db2777", "#ea580c", "#65a30d", "#334155", "#dc2626", "#9ca3af"];
 
+async function parseResponseJson(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return null;
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 export default function DashboardPage() {
   const [month, setMonth] = useState(getCurrentMonth());
   const [stats, setStats] = useState<StatsResponse | null>(null);
@@ -94,14 +107,14 @@ export default function DashboardPage() {
           fetch(`/api/budget?month=${month}`, { cache: "no-store" }),
         ]);
 
-        const statsData = await statsRes.json();
-        const budgetData = await budgetRes.json();
+        const statsData = await parseResponseJson(statsRes);
+        const budgetData = await parseResponseJson(budgetRes);
 
-        if (!statsRes.ok) throw new Error(statsData.error || "加载统计数据失败");
-        if (!budgetRes.ok) throw new Error(budgetData.error || "加载预算失败");
+        if (!statsRes.ok) throw new Error((statsData && typeof statsData.error === "string" ? statsData.error : "加载统计数据失败"));
+        if (!budgetRes.ok) throw new Error((budgetData && typeof budgetData.error === "string" ? budgetData.error : "加载预算失败"));
 
-        setStats(statsData.data);
-        setBudget(budgetData.data);
+        setStats((statsData?.data as StatsResponse | undefined) || null);
+        setBudget((budgetData?.data as BudgetResponse | undefined) || null);
       } catch (e) {
         setError(e instanceof Error ? e.message : "加载数据失败");
         setStats(null);

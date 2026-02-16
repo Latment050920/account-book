@@ -34,6 +34,19 @@ function formatCentsToYuan(cents: number) {
   });
 }
 
+async function parseResponseJson(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return null;
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 export default function SettingsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
@@ -61,9 +74,9 @@ export default function SettingsPage() {
     setCategoriesError("");
     try {
       const res = await fetch("/api/categories", { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "加载分类失败");
-      setCategories(data.data || []);
+      const data = await parseResponseJson(res);
+      if (!res.ok) throw new Error((data && typeof data.error === "string" ? data.error : "加载分类失败"));
+      setCategories((data?.data as Category[] | undefined) || []);
     } catch (e) {
       setCategoriesError(e instanceof Error ? e.message : "加载分类失败");
     } finally {
@@ -77,10 +90,10 @@ export default function SettingsPage() {
     setBudgetSuccess("");
     try {
       const res = await fetch(`/api/budget?month=${month}`, { cache: "no-store" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "加载预算失败");
+      const data = await parseResponseJson(res);
+      if (!res.ok) throw new Error((data && typeof data.error === "string" ? data.error : "加载预算失败"));
 
-      const fetchedBudget = data.data as Budget | null;
+      const fetchedBudget = (data?.data as Budget | null | undefined) ?? null;
       setBudget(fetchedBudget);
       setBudgetInput(fetchedBudget ? String(fetchedBudget.totalBudgetCents) : "");
     } catch (e) {
@@ -120,9 +133,9 @@ export default function SettingsPage() {
           icon: icon || undefined,
         }),
       });
-      const data = await res.json();
+      const data = await parseResponseJson(res);
       if (!res.ok) {
-        setCategorySubmitError(data.error || "新增分类失败");
+        setCategorySubmitError((data && typeof data.error === "string" ? data.error : "新增分类失败"));
         return;
       }
 
@@ -154,9 +167,9 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ totalBudgetCents }),
       });
-      const data = await res.json();
+      const data = await parseResponseJson(res);
       if (!res.ok) {
-        setBudgetError(data.error || "保存预算失败");
+        setBudgetError((data && typeof data.error === "string" ? data.error : "保存预算失败"));
         return;
       }
 
