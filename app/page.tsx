@@ -39,6 +39,13 @@ type StatsResponse = {
   byDay: StatsByDay[];
 };
 
+type BudgetResponse = {
+  id: number;
+  month: string;
+  totalBudgetCents: number;
+  createdAt: string;
+} | null;
+
 function getCurrentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
@@ -51,32 +58,60 @@ function formatCentsToYuan(cents: number) {
   });
 }
 
+function getRemainingDaysInMonth(month: string) {
+  const now = new Date();
+  const [year, m] = month.split("-").map(Number);
+
+  const start = new Date(Date.UTC(year, m - 1, 1));
+  const end = new Date(Date.UTC(year, m, 0));
+
+  const monthKey = `${year}-${String(m).padStart(2, "0")}`;
+  const currentMonthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+
+  if (monthKey < currentMonthKey) return 0;
+  if (monthKey > currentMonthKey) return end.getUTCDate();
+
+  const todayDate = now.getUTCDate();
+  return Math.max(end.getUTCDate() - todayDate + 1, 0);
+}
+
 const PIE_COLORS = ["#0f766e", "#0284c7", "#7c3aed", "#db2777", "#ea580c", "#65a30d", "#334155", "#dc2626", "#9ca3af"];
 
 export default function DashboardPage() {
   const [month, setMonth] = useState(getCurrentMonth());
   const [stats, setStats] = useState<StatsResponse | null>(null);
+  const [budget, setBudget] = useState<BudgetResponse>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadStats() {
+    async function loadDashboard() {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch(`/api/stats?month=${month}`, { cache: "no-store" });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "加载统计数据失败");
-        setStats(data.data);
+        const [statsRes, budgetRes] = await Promise.all([
+          fetch(`/api/stats?month=${month}`, { cache: "no-store" }),
+          fetch(`/api/budget?month=${month}`, { cache: "no-store" }),
+        ]);
+
+        const statsData = await statsRes.json();
+        const budgetData = await budgetRes.json();
+
+        if (!statsRes.ok) throw new Error(statsData.error || "加载统计数据失败");
+        if (!budgetRes.ok) throw new Error(budgetData.error || "加载预算失败");
+
+        setStats(statsData.data);
+        setBudget(budgetData.data);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "加载统计数据失败");
+        setError(e instanceof Error ? e.message : "加载数据失败");
         setStats(null);
+        setBudget(null);
       } finally {
         setLoading(false);
       }
     }
 
-    loadStats();
+    loadDashboard();
   }, [month]);
 
   const expenseByDay = useMemo(
@@ -111,6 +146,12 @@ export default function DashboardPage() {
     [stats]
   );
 
+  const budgetCents = budget?.totalBudgetCents || 0;
+  const spentCents = stats?.totalExpenseCents || 0;
+  const remainingCents = budgetCents - spentCents;
+  const remainingDays = getRemainingDaysInMonth(month);
+  const dailyBudgetCents = remainingDays > 0 ? Math.floor(remainingCents / remainingDays) : 0;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -133,6 +174,32 @@ export default function DashboardPage() {
           </p>
         </Card>
       </div>
+
+      <Card title="预算卡片">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <div className="rounded-md border border-slate-200 p-3">
+            <p className="text-xs text-slate-500">Budget</p>
+            <p className="text-lg font-semibold">{formatCentsToYuan(budgetCents)}</p>
+          </div>
+          <div className="rounded-md border border-slate-200 p-3">
+            <p className="text-xs text-slate-500">已花</p>
+            <p className="text-lg font-semibold text-red-600">{formatCentsToYuan(spentCents)}</p>
+          </div>
+          <div className="rounded-md border border-slate-200 p-3">
+            <p className="text-xs text-slate-500">剩余</p>
+            <p className={`text-lg font-semibold ${remainingCents < 0 ? "text-red-600" : "text-emerald-600"}`}>
+              {formatCentsToYuan(remainingCents)}
+            </p>
+          </div>
+          <div className="rounded-md border border-slate-200 p-3">
+            <p className="text-xs text-slate-500">每日可花</p>
+            <p className={`text-lg font-semibold ${dailyBudgetCents < 0 ? "text-red-600" : "text-slate-900"}`}>
+              {formatCentsToYuan(dailyBudgetCents)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">剩余天数：{remainingDays}</p>
+          </div>
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card title="按天支出（柱状图）">

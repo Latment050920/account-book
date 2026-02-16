@@ -239,3 +239,47 @@ pnpm dev
 1. 切换月份后，KPI 和所有图表/排行联动刷新。
 2. 无数据月份不报错，展示“暂无数据”提示。
 3. 饼图仅统计支出分类，超过 8 个后合并为 `Other`。
+
+
+---
+
+## Phase 6：`/settings` + Dashboard 预算卡片
+
+### `/settings` 已实现
+
+- 分类列表（按 `expense/income` 分组）
+- 新增分类表单（调用 `POST /api/categories`）
+- 月预算设置（单位分，调用 `GET/POST /api/budget?month=YYYY-MM`）
+- 预算保存后重新拉取并展示，刷新页面后仍可读取（持久化在 DB）
+
+### Dashboard 已增强
+
+新增预算卡片，显示：
+
+- `budget`
+- `已花`
+- `剩余`
+- `每日可花 = (budget - 已花) / 剩余天数`（显示到元）
+
+数据来源：`/api/stats` + `/api/budget`。
+
+### Phase 6 本地验收
+
+```bash
+pnpm install
+pnpm prisma migrate dev --name init
+pnpm prisma db seed
+pnpm dev
+```
+
+访问：
+
+- `http://localhost:3000/settings`
+- `http://localhost:3000/`
+
+建议验收：
+
+1. 在 `/settings` 新增分类后，列表立刻更新。
+2. 在 `/settings` 设置某月预算，保存后可看到当前预算值。
+3. 刷新 `/settings` 页面，预算值仍存在。
+4. 打开 Dashboard，切换同月份，预算卡片随月份联动更新。
