@@ -19,6 +19,7 @@
 - [7. API 使用教程（含 curl 示例）](#7-api-使用教程含-curl-示例)
 - [8. 常见问题排查](#8-常见问题排查)
 - [9. 验收清单（手工测试建议）](#9-验收清单手工测试建议)
+- [10. CSV 导入（Phase Import-1）](#10-csv-导入phase-import-1)
 
 ---
 
@@ -56,6 +57,13 @@
 - 新增分类（调用 `POST /api/categories`）
 - 预算管理：按月设置 `totalBudgetCents`（分）
 - 预算保存后会重新拉取，刷新页面后仍存在（数据库持久化）
+
+
+### Import `/import`
+
+- 上传 `.csv` 文件并做列映射
+- 预览前 50 行解析结果（OK/ERROR）
+- 一键导入 OK 行到数据库（批量）
 
 ---
 
@@ -149,6 +157,7 @@ pnpm dev
 - `http://localhost:3000/`
 - `http://localhost:3000/transactions`
 - `http://localhost:3000/settings`
+- `http://localhost:3000/import`
 
 ### 5.4 可选：查看数据库
 
@@ -343,3 +352,76 @@ pnpm dev
 ## License
 
 仅用于学习与演示（MVP 阶段）。
+
+
+
+## 10. CSV 导入（Phase Import-1）
+
+新增页面：`/import`，用于将 CSV 批量导入为流水。
+
+### 10.1 使用流程
+
+1. 打开 `http://localhost:3000/import`
+2. 上传 `.csv` 文件
+3. 配置列映射（date、amount 必选）
+4. 检查预览（前 50 行）中的 `OK/ERROR`
+5. 点击“一键导入（仅 OK 行）”
+6. 查看导入结果统计（inserted / failed）
+
+### 10.2 列映射说明
+
+- `date`（必选）：支持 `YYYY-MM-DD` 或 ISO 时间
+- `amount`（必选）：支持带 `￥/$/HK$/AUD/JPY` 前缀及千分位逗号，入库转 `amountCents`
+- `type`（可选）：`income/expense`；缺省时使用“默认 type”
+- `category`（可选）：按分类名匹配现有分类；匹配不到使用“默认分类”
+- `note`（可选）：备注
+- `currency`（可选）：缺省使用默认币种（默认 `CNY`）
+
+### 10.3 CSV 模板示例
+
+```csv
+date,amount,type,category,note,currency
+2026-02-01,"¥12.50",expense,餐饮,早餐,CNY
+2026-02-02,"HK$1,234.00",expense,交通,打车,HKD
+2026-02-03,2000,income,工资,发薪,CNY
+2026-02-04,"$56.70",expense,娱乐,电影,USD
+2026-02-05,88.8,expense,购物,日用品,CNY
+```
+
+### 10.4 批量导入 API
+
+`POST /api/transactions/bulk`
+
+请求体：
+
+```json
+{
+  "items": [
+    {
+      "type": "expense",
+      "amountCents": 1250,
+      "currency": "CNY",
+      "categoryId": 1,
+      "note": "早餐",
+      "happenedAt": "2026-02-01T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+返回：
+
+```json
+{
+  "inserted": 5,
+  "failed": 1,
+  "errors": [{ "index": 3, "message": "categoryId does not exist." }]
+}
+```
+
+### 10.5 导入验收步骤
+
+1. 准备至少 6 行 CSV（其中 1 行故意填错日期或金额）
+2. 在 `/import` 完成映射并导入
+3. 确认结果中 `inserted >= 5` 且有错误行提示
+4. 打开 `/transactions` 对应月份，确认可看到导入记录

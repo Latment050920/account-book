@@ -11,6 +11,7 @@ const links = [
   { href: "/", label: "Dashboard" },
   { href: "/transactions", label: "Transactions" },
   { href: "/settings", label: "Settings" },
+  { href: "/import", label: "Import" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

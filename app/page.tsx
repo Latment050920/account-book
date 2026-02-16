@@ -62,7 +62,6 @@ function getRemainingDaysInMonth(month: string) {
   const now = new Date();
   const [year, m] = month.split("-").map(Number);
 
-  const start = new Date(Date.UTC(year, m - 1, 1));
   const end = new Date(Date.UTC(year, m, 0));
 
   const monthKey = `${year}-${String(m).padStart(2, "0")}`;
