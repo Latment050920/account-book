@@ -1,29 +1,141 @@
-# Account Book（Phase 1 + 2 + 3）
+# Account Book
 
-个人生活记账可视化 Web App。
+一个面向个人生活记账的可视化 Web App（MVP），目标是：
 
-- Phase 1：Next.js + TypeScript + Tailwind 基础骨架
-- Phase 2：Prisma + SQLite + 分类 Seed
-- Phase 3：API（categories / transactions / stats / budget）
+- **低摩擦记账**（快速新增、按月查看、常用筛选）
+- **可视化复盘**（KPI、按天趋势、分类占比、Top 分类）
+- **预算管理**（按月预算、预算剩余、每日可花）
 
-## 技术栈
+---
 
-- Next.js（App Router）
-- TypeScript
-- Tailwind CSS
-- Prisma
-- SQLite（dev）
-- pnpm
+## 目录
 
-## 环境准备
+- [1. 功能概览](#1-功能概览)
+- [2. 技术栈](#2-技术栈)
+- [3. 数据规范](#3-数据规范)
+- [4. 项目结构](#4-项目结构)
+- [5. 本地快速开始](#5-本地快速开始)
+- [6. 页面使用教程](#6-页面使用教程)
+- [7. API 使用教程（含 curl 示例）](#7-api-使用教程含-curl-示例)
+- [8. 常见问题排查](#8-常见问题排查)
+- [9. 验收清单（手工测试建议）](#9-验收清单手工测试建议)
 
-项目已提供 `.env`（同时保留 `.env.example` 作为模板）：
+---
+
+## 1. 功能概览
+
+### Dashboard `/`
+
+- 月份选择（默认当前月）
+- KPI：总支出 / 总收入 / 结余
+- 图表：
+  - 按天支出柱状图（byDay）
+  - 支出分类占比环图（Top 8 + Other）
+- 支出 Top5 分类排行
+- 预算卡片：
+  - budget
+  - 已花
+  - 剩余
+  - 每日可花（`(budget - 已花) / 剩余天数`）
+
+### Transactions `/transactions`
+
+- 月份切换查看流水
+- 列表字段：日期、类型、分类、金额、备注
+- 筛选：类型（all/income/expense）+ 分类 + 备注关键词
+- 新增流水 Modal：
+  - type
+  - amount（输入元，提交转分）
+  - category
+  - note
+  - happenedAt（默认今天，含“昨天”快捷）
+
+### Settings `/settings`
+
+- 分类管理：按 income / expense 分组展示
+- 新增分类（调用 `POST /api/categories`）
+- 预算管理：按月设置 `totalBudgetCents`（分）
+- 预算保存后会重新拉取，刷新页面后仍存在（数据库持久化）
+
+---
+
+## 2. 技术栈
+
+- **Next.js（App Router）**
+- **TypeScript**
+- **Tailwind CSS**
+- **Prisma**
+- **SQLite（dev）**
+- **Recharts**
+- **pnpm**
+
+---
+
+## 3. 数据规范
+
+### 金额规范（非常重要）
+
+- 存储与传输统一使用**整数分**：
+  - `Transaction.amountCents`
+  - `Budget.totalBudgetCents`
+- UI 显示时再格式化为“元”。
+
+### 核心模型
+
+- `Category`: `id`, `name`, `type(income|expense)`, `icon?`, `createdAt`
+- `Transaction`: `id`, `type`, `amountCents`, `categoryId`, `note?`, `happenedAt`, `createdAt`
+- `Budget`: `id`, `month(YYYY-MM)`, `totalBudgetCents`, `createdAt`
+
+---
+
+## 4. 项目结构
+
+```txt
+app/
+  api/
+    budget/route.ts
+    categories/route.ts
+    stats/route.ts
+    transactions/route.ts
+  layout.tsx
+  page.tsx                # Dashboard
+  transactions/page.tsx
+  settings/page.tsx
+components/
+  Button.tsx
+  Card.tsx
+  Input.tsx
+  Modal.tsx
+  Select.tsx
+lib/
+  api.ts                  # JSON 响应助手
+  prisma.ts               # Prisma 单例
+  validators.ts           # 输入校验工具
+prisma/
+  schema.prisma
+  seed.mjs
+```
+
+---
+
+## 5. 本地快速开始
+
+### 5.1 环境要求
+
+- Node.js 18+（建议 20+）
+- pnpm 9+
+
+### 5.2 环境变量
+
+项目根目录确保有 `.env`：
 
 ```env
 DATABASE_URL="file:./dev.db"
 ```
 
-## 安装与启动
+如果你要重建，可参考 `.env.example`。
+
+### 5.3 安装、迁移、种子、启动
 
 ```bash
 pnpm install
@@ -32,27 +144,75 @@ pnpm prisma db seed
 pnpm dev
 ```
 
-页面访问：
+启动后访问：
 
 - `http://localhost:3000/`
 - `http://localhost:3000/transactions`
 - `http://localhost:3000/settings`
 
+### 5.4 可选：查看数据库
+
+```bash
+pnpm prisma studio
+```
+
 ---
 
-## Phase 3 API 说明
+## 6. 页面使用教程
+
+### 6.1 Dashboard 教程
+
+1. 进入 `/`。
+2. 右上角选择月份（`YYYY-MM`）。
+3. 观察 KPI 与图表是否联动变化。
+4. 查看预算卡片：
+   - 若当月未设置预算，budget 显示为 0。
+   - 设置预算后，可看到“已花 / 剩余 / 每日可花”。
+
+### 6.2 Transactions 教程
+
+1. 进入 `/transactions`。
+2. 通过顶部月份选择切换账期。
+3. 使用筛选条件逐步定位流水：
+   - 类型筛选
+   - 分类筛选
+   - note 关键词
+4. 点击“新增”：
+   - 填写金额（元）
+   - 选择分类
+   - 日期可点“昨天”快捷
+5. 提交成功后：Modal 关闭，列表自动刷新。
+
+### 6.3 Settings 教程
+
+#### 新增分类
+
+1. 进入 `/settings`。
+2. 在“新增分类”输入名称，选择类型，可选 icon。
+3. 点击“新增分类”。
+4. 对应分组（支出/收入）列表会立即更新。
+
+#### 设置预算
+
+1. 在“月预算设置”中选择月份。
+2. 输入 `totalBudgetCents`（分，正整数），例如 `500000` 表示 `¥5000.00`。
+3. 点击“保存预算”。
+4. 页面会显示“预算已保存”，并刷新当前预算显示。
+5. 刷新页面后仍可读取，表示已持久化到数据库。
+
+---
+
+## 7. API 使用教程（含 curl 示例）
 
 统一说明：
 
-- 金额字段统一“整数分”：`amountCents`、`totalBudgetCents`
-- 输入校验失败返回 `400` + `{ "error": "..." }`
-- 返回 JSON
+- 所有接口返回 JSON。
+- 输入校验失败返回 `400` + `{ "error": "..." }`。
+- month 参数格式：`YYYY-MM`。
 
-### 1) Categories
+### 7.1 Categories
 
 #### GET `/api/categories`
-
-返回全部分类列表（固定按 type/name 排序）。
 
 ```bash
 curl "http://localhost:3000/api/categories"
@@ -60,37 +220,21 @@ curl "http://localhost:3000/api/categories"
 
 #### POST `/api/categories`
 
-请求体：
-
-```json
-{
-  "name": "咖啡",
-  "type": "expense",
-  "icon": "☕"
-}
-```
-
 ```bash
 curl -X POST "http://localhost:3000/api/categories" \
   -H "Content-Type: application/json" \
   -d '{"name":"咖啡","type":"expense","icon":"☕"}'
 ```
 
-### 2) Transactions
+### 7.2 Transactions
+
+#### GET `/api/transactions?month=YYYY-MM`
+
+```bash
+curl "http://localhost:3000/api/transactions?month=2026-02"
+```
 
 #### POST `/api/transactions`
-
-请求体：
-
-```json
-{
-  "type": "expense",
-  "amountCents": 3200,
-  "categoryId": "1",
-  "note": "午餐",
-  "happenedAt": "2026-02-15T12:30:00.000Z"
-}
-```
 
 ```bash
 curl -X POST "http://localhost:3000/api/transactions" \
@@ -98,49 +242,35 @@ curl -X POST "http://localhost:3000/api/transactions" \
   -d '{"type":"expense","amountCents":3200,"categoryId":"1","note":"午餐","happenedAt":"2026-02-15T12:30:00.000Z"}'
 ```
 
-> 会校验：`categoryId` 存在，且分类 `type` 必须与流水 `type` 一致。
+> 会校验：categoryId 是否存在、且 category.type 与 transaction.type 必须一致。
 
-#### GET `/api/transactions?month=YYYY-MM`
-
-返回当月流水（`happenedAt` 倒序），并包含 `categoryName/categoryType/categoryIcon`。
-
-```bash
-curl "http://localhost:3000/api/transactions?month=2026-02"
-```
-
-### 3) Stats
+### 7.3 Stats
 
 #### GET `/api/stats?month=YYYY-MM`
-
-返回：
-
-- `totalExpenseCents`
-- `totalIncomeCents`
-- `netCents`
-- `byCategory`（按分类汇总并按 `totalCents desc`）
-- `byDay`（按天汇总）
 
 ```bash
 curl "http://localhost:3000/api/stats?month=2026-02"
 ```
 
-### 4) Budget
+返回核心字段：
+
+- `totalExpenseCents`
+- `totalIncomeCents`
+- `netCents`
+- `byCategory`
+- `byDay`
+
+### 7.4 Budget
 
 #### GET `/api/budget?month=YYYY-MM`
-
-返回当月预算；若不存在，返回 `data: null`。
 
 ```bash
 curl "http://localhost:3000/api/budget?month=2026-02"
 ```
 
+若当月未设置，返回 `data: null`。
+
 #### POST `/api/budget?month=YYYY-MM`
-
-请求体：
-
-```json
-{ "totalBudgetCents": 500000 }
-```
 
 ```bash
 curl -X POST "http://localhost:3000/api/budget?month=2026-02" \
@@ -148,122 +278,45 @@ curl -X POST "http://localhost:3000/api/budget?month=2026-02" \
   -d '{"totalBudgetCents":500000}'
 ```
 
-> 行为：按 `month` upsert（有则更新，无则创建）。
-
 ---
 
-## 本地验收（Phase 3）
+## 8. 常见问题排查
 
-1. 启动项目：
+### Q1: `ERR_PNPM_FETCH_403`
 
-```bash
-pnpm install
-pnpm prisma migrate dev --name init
-pnpm prisma db seed
-pnpm dev
-```
-
-2. 用上面 curl 示例逐个调用接口，验证：
-
-- 非法输入（缺字段、类型错误、金额 <= 0、非法 month/日期、分类不匹配）返回 `400`
-- 预算接口可正常 upsert
-- 统计接口能返回总额、分类汇总、按天汇总
-
-## 注意事项
-
-- 金额统一存储“分”（Int）。
-- `Budget.month` 使用 `YYYY-MM` 且唯一。
-- 如安装失败可切回官方源：
+说明当前 registry/网络策略限制下载依赖。尝试：
 
 ```bash
 pnpm config set registry https://registry.npmjs.org
 ```
 
+如果仍失败，需检查公司代理或 CI 网络策略。
+
+### Q2: `Unexpected token '<', "<!DOCTYPE ..." is not valid JSON`
+
+这通常表示接口实际返回了 HTML 错误页（而不是 JSON）。常见原因：
+
+- 路由地址写错
+- 服务未启动
+- 服务端报错返回错误页
+
+当前前端已对非 JSON 响应做了容错处理，但仍建议先在浏览器 Network 面板确认实际响应状态码与响应体。
+
+### Q3: 设置了预算但 Dashboard 不更新
+
+请确认：
+
+1. Dashboard 与 Settings 选择的是同一月份。
+2. 保存预算后请求是否成功（Network 面板看 `/api/budget`）。
+3. 预算值是否是“分”的整数（>0）。
 
 ---
 
-## Phase 4：`/transactions` 页面
+## 9. 验收清单（手工测试建议）
 
-已实现：
+按下面顺序验收：
 
-- 月份选择（默认当前月）
-- 列表展示：`date/type/category/amount/note`
-- 筛选：`type(all/income/expense)`、`category`、关键词（note）
-- “新增”按钮打开 Modal：`type/amount/category/note/happenedAt`
-- `happenedAt` 默认今天，支持“昨天”快捷
-- 提交成功后自动刷新列表并关闭弹窗
-
-### Phase 4 本地验收
-
-```bash
-pnpm dev
-```
-
-打开：`http://localhost:3000/transactions`
-
-建议手工检查：
-
-1. 切换月份后，列表按月更新。
-2. 切换 type/category/关键词，列表过滤正确。
-3. 新增流水时：
-   - 金额 <= 0、缺分类、非法日期会提示错误；
-   - 正常提交后 Modal 关闭，列表立即出现新记录。
-4. 点击“昨天”按钮，日期应变为昨天。
-
-
----
-
-## Phase 5：Dashboard（`/`）图表
-
-已实现：
-
-- 月份选择（默认当前月）
-- KPI 卡片：支出、收入、结余
-- 柱状图：按天支出（`byDay`）
-- 环形图：支出按分类占比（Top 8，其余合并 `Other`）
-- Top 5 支出分类排行
-
-图表库使用：`Recharts`，数据来自：`/api/stats?month=YYYY-MM`。
-
-### Phase 5 本地验收
-
-```bash
-pnpm install
-pnpm dev
-```
-
-访问：`http://localhost:3000/`
-
-验收点：
-
-1. 切换月份后，KPI 和所有图表/排行联动刷新。
-2. 无数据月份不报错，展示“暂无数据”提示。
-3. 饼图仅统计支出分类，超过 8 个后合并为 `Other`。
-
-
----
-
-## Phase 6：`/settings` + Dashboard 预算卡片
-
-### `/settings` 已实现
-
-- 分类列表（按 `expense/income` 分组）
-- 新增分类表单（调用 `POST /api/categories`）
-- 月预算设置（单位分，调用 `GET/POST /api/budget?month=YYYY-MM`）
-- 预算保存后重新拉取并展示，刷新页面后仍可读取（持久化在 DB）
-
-### Dashboard 已增强
-
-新增预算卡片，显示：
-
-- `budget`
-- `已花`
-- `剩余`
-- `每日可花 = (budget - 已花) / 剩余天数`（显示到元）
-
-数据来源：`/api/stats` + `/api/budget`。
-
-### Phase 6 本地验收
+1. 启动与数据初始化：
 
 ```bash
 pnpm install
@@ -272,14 +325,21 @@ pnpm prisma db seed
 pnpm dev
 ```
 
-访问：
+2. `/settings`：
+   - 新增 income/expense 分类各 1 个
+   - 设置当月预算并刷新页面，确认仍存在
 
-- `http://localhost:3000/settings`
-- `http://localhost:3000/`
+3. `/transactions`：
+   - 新增 2~3 条流水（含不同分类）
+   - 检查筛选逻辑（type/category/关键词）
 
-建议验收：
+4. `/` Dashboard：
+   - 确认 KPI 与图表有数据
+   - 切换月份后联动刷新
+   - 预算卡片中的 budget/已花/剩余/每日可花计算合理
 
-1. 在 `/settings` 新增分类后，列表立刻更新。
-2. 在 `/settings` 设置某月预算，保存后可看到当前预算值。
-3. 刷新 `/settings` 页面，预算值仍存在。
-4. 打开 Dashboard，切换同月份，预算卡片随月份联动更新。
+---
+
+## License
+
+仅用于学习与演示（MVP 阶段）。
