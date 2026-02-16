@@ -17,7 +17,7 @@
 
 ## 环境准备
 
-创建 `.env`（可复制 `.env.example`）：
+项目已提供 `.env`（同时保留 `.env.example` 作为模板）：
 
 ```env
 DATABASE_URL="file:./dev.db"
